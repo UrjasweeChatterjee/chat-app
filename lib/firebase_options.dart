@@ -55,6 +55,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '852896195954',
     projectId: 'chat-app-e2d77',
     storageBucket: 'chat-app-e2d77.firebasestorage.app',
+    authDomain: 'chat-app-e2d77.firebaseapp.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
