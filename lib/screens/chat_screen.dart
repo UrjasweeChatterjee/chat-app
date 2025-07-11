@@ -2,43 +2,74 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-class ChatScreen extends StatelessWidget {
+class ChatScreen extends StatefulWidget {
   final String receiverId;
   final String receiverEmail;
-  final TextEditingController messageController = TextEditingController();
 
-  ChatScreen({required this.receiverId, required this.receiverEmail});
+  const ChatScreen({
+    Key? key,
+    required this.receiverId,
+    required this.receiverEmail,
+  }) : super(key: key);
 
-  String getChatId(String uid1, String uid2) {
-    return uid1.hashCode <= uid2.hashCode ? '$uid1\_$uid2' : '$uid2\_$uid1';
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final messageController = TextEditingController();
+  final currentUser = FirebaseAuth.instance.currentUser;
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    super.dispose();
   }
 
-  void sendMessage() async {
-    final currentUser = FirebaseAuth.instance.currentUser!;
-    final chatId = getChatId(currentUser.uid, receiverId);
-    final message = messageController.text.trim();
-    if (message.isEmpty) return;
+  Future<void> sendMessage() async {
+    if (messageController.text.trim().isEmpty) return;
 
-    await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .add({
-          'senderId': currentUser.uid,
-          'receiverId': receiverId,
-          'message': message,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-    messageController.clear();
+    try {
+      final message = messageController.text.trim();
+      final timestamp = FieldValue.serverTimestamp();
+
+      // Create a chat room ID that's the same regardless of who started the chat
+      final List<String> ids = [currentUser!.uid, widget.receiverId];
+      ids.sort(); // Sort to ensure consistency
+      final chatRoomId = ids.join('_');
+
+      // Add message to Firestore
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatRoomId)
+          .collection('messages')
+          .add({
+            'senderId': currentUser!.uid,
+            'receiverId': widget.receiverId,
+            'message': message,
+            'timestamp': timestamp,
+          });
+
+      messageController.clear();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error sending message: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser!;
-    final chatId = getChatId(currentUser.uid, receiverId);
+    // Create a chat room ID that's the same regardless of who started the chat
+    final List<String> ids = [currentUser!.uid, widget.receiverId];
+    ids.sort(); // Sort to ensure consistency
+    final chatRoomId = ids.join('_');
 
     return Scaffold(
-      appBar: AppBar(title: Text(receiverEmail)),
+      appBar: AppBar(title: Text(widget.receiverEmail)),
       body: Column(
         children: [
           Expanded(
@@ -46,33 +77,62 @@ class ChatScreen extends StatelessWidget {
               stream:
                   FirebaseFirestore.instance
                       .collection('chats')
-                      .doc(chatId)
+                      .doc(chatRoomId)
                       .collection('messages')
-                      .orderBy('timestamp')
+                      .orderBy('timestamp', descending: true)
                       .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData)
-                  return Center(child: CircularProgressIndicator());
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
                 final messages = snapshot.data!.docs;
+
+                if (messages.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No messages yet.\nStart the conversation!',
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+
                 return ListView.builder(
+                  reverse: true,
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
-                    final data = messages[index];
-                    final isMe = data['senderId'] == currentUser.uid;
+                    final message =
+                        messages[index].data() as Map<String, dynamic>;
+                    final isMe = message['senderId'] == currentUser!.uid;
+
                     return Align(
                       alignment:
                           isMe ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
-                        margin: EdgeInsets.symmetric(
-                          vertical: 4,
-                          horizontal: 8,
+                        margin: EdgeInsets.only(
+                          left: isMe ? 64 : 8,
+                          right: isMe ? 8 : 64,
+                          top: 8,
+                          bottom: 8,
                         ),
-                        padding: EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isMe ? Colors.blue[100] : Colors.grey[300],
-                          borderRadius: BorderRadius.circular(8),
+                          color:
+                              isMe
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey[300],
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Text(data['message']),
+                        child: Text(
+                          message['message'] as String,
+                          style: TextStyle(
+                            color: isMe ? Colors.white : Colors.black,
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -80,16 +140,34 @@ class ChatScreen extends StatelessWidget {
               },
             ),
           ),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: messageController,
-                  decoration: InputDecoration(hintText: 'Type a message'),
+          Container(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: messageController,
+                    decoration: InputDecoration(
+                      hintText: 'Type a message...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => sendMessage(),
+                  ),
                 ),
-              ),
-              IconButton(icon: Icon(Icons.send), onPressed: sendMessage),
-            ],
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: sendMessage,
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -1,1 +1,14 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"chat-app-e2d77","appId":"1:852896195954:android:0d1c8d12977b266e0da9eb","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"chat-app-e2d77","appId":"1:852896195954:ios:e46e27981393c64c0da9eb","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"chat-app-e2d77","appId":"1:852896195954:ios:e46e27981393c64c0da9eb","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"chat-app-e2d77","configurations":{"android":"1:852896195954:android:0d1c8d12977b266e0da9eb","ios":"1:852896195954:ios:e46e27981393c64c0da9eb","macos":"1:852896195954:ios:e46e27981393c64c0da9eb","web":"1:852896195954:web:7dc9f04d83bc0ebf0da9eb","windows":"1:852896195954:web:adb0a15e5f0f9ee20da9eb"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true
+    }
+  }
+}
